@@ -1,0 +1,28 @@
+# Build outputs
+out/
+target/
+*.class
+
+# Runtime downloads and log folders (keep structure via .gitkeep)
+downloads/*
+!downloads/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# IDE and Editor files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project/
+.classpath/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archives & Temporary files
+*.zip
+*.tar.gz
+*.log

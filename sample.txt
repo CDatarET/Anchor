@@ -1,0 +1,3 @@
+This is a sample text file for testing the Reliable UDP file transfer protocol.
+It demonstrates reliable, in-order file transfer over UDP using Selective Repeat ARQ.
+The protocol computes SHA-256 checksums before and after transfer to guarantee 100% data integrity.
