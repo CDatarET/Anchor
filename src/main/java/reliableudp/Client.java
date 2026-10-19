@@ -25,6 +25,9 @@ import reliableudp.transport.TransferSession;
 import reliableudp.util.ArgParser;
 import reliableudp.util.FileChecksum;
 import reliableudp.util.Logger;
+import java.nio.file.DirectoryStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Command-line client and reusable client API.
@@ -173,20 +176,45 @@ public final class Client {
                     Logger.info("[client] progress %3d%%  (%d / %d bytes acknowledged)", decile * 10, acked, total);
                 }
             };
-            TransferResult result;
-            try {
-                result = transfer(new InetSocketAddress(host, port), Paths.get(fileArg), cfg, net,
-                        a.get("scenario", "manual"), progress);
-            } finally {
-                net.close();
-            }
-            System.out.println(MetricsLogger.summary(result.metrics()));
-            if (!a.has("no-csv")) {
-                Path csv = Paths.get(a.get("csv", "logs/transfers.csv"));
-                MetricsLogger.append(csv, result.metrics());
-                System.out.println("Statistics appended to " + csv.toAbsolutePath());
-            }
-            exit = result.success() ? 0 : 1;
+            List<Path> files = expandFilePaths(fileArg);
+boolean allSuccess = true;
+
+try {
+    for (Path file : files) {
+        System.out.println("Sending file: " + file);
+
+        TransferResult result = transfer(
+                new InetSocketAddress(host, port),
+                file,
+                cfg,
+                net,
+                a.get("scenario", "manual"),
+                progress);
+
+        System.out.println(MetricsLogger.summary(result.metrics()));
+
+        if (!a.has("no-csv")) {
+            Path csv = Paths.get(
+                    a.get("csv", "logs/transfers.csv"));
+
+            MetricsLogger.append(csv, result.metrics());
+
+            System.out.println(
+                    "Statistics appended to " + csv.toAbsolutePath());
+        }
+
+        if (!result.success()) {
+            allSuccess = false;
+            System.err.println(
+                    "Transfer failed for: " + file
+                    + " - " + result.error());
+        }
+    }
+} finally {
+    net.close();
+}
+
+exit = allSuccess ? 0 : 1;
         } catch (UnknownHostException e) {
             System.err.println("Unknown host: " + e.getMessage());
             exit = 2;
@@ -200,6 +228,46 @@ public final class Client {
             Logger.closeFile();
         }
         System.exit(exit);
+    }
+
+    private static List<Path> expandFilePaths(String fileArg) throws IOException {
+        // Expand ~ to the current user's home directory.
+        String home = System.getProperty("user.home");
+
+        if (fileArg.equals("~")) {
+            fileArg = home;
+        } else if (fileArg.startsWith("~/")) {
+            fileArg = home + fileArg.substring(1);
+        }
+
+        // Convert the input into an absolute, normalized path.
+        Path path = Paths.get(fileArg).toAbsolutePath().normalize();
+
+        // Separate the directory from the filename/pattern.
+        Path directory = path.getParent();
+        String pattern = path.getFileName().toString();
+
+        if (directory == null) {
+            directory = Paths.get(".").toAbsolutePath().normalize();
+        }
+
+        // Expand wildcard patterns and collect matching regular files.
+        List<Path> matches = new ArrayList<>();
+
+        try (DirectoryStream<Path> stream =
+                Files.newDirectoryStream(directory, pattern)) {
+            for (Path match : stream) {
+                if (Files.isRegularFile(match) && Files.isReadable(match)) {
+                    matches.add(match);
+                }
+            }
+        }
+
+        if (matches.isEmpty()) {
+            throw new IOException("No readable files matched: " + fileArg);
+        }
+
+        return matches;
     }
 
     private static void printUsage() {

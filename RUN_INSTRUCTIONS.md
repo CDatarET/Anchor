@@ -26,6 +26,7 @@ scripts\build.bat
 
 ### Linux / macOS:
 ```bash
+chmod +x scripts/build.sh
 ./scripts/build.sh
 ```
 
